@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract DecentralizedExchange {
+    mapping(address => mapping(address => uint256)) public balances;
+    mapping(address => bool) public tokens;
+    mapping(address => bool) public marketMakers;
+    mapping(address => mapping(address => bool)) public authorized;
+
+    event TokenAdded(address indexed token);
+    event MarketMakerAdded(address indexed marketMaker);
+    event Deposit(address indexed account, address indexed token, uint256 amount);
+    event Withdrawal(address indexed account, address indexed token, uint256 amount);
+    event Trade(address indexed from, address indexed to, address indexed token, uint256 amount, uint256 amountReceived);
+
+    modifier onlyMarketMaker() {
+        require(marketMakers[msg.sender], "Only market makers can call this function");
+        _;
+    }
+
+    modifier onlyAuthorized(address _token) {
+        require(authorized[_token][msg.sender], "Sender not authorized to trade this token");
+        _;
+    }
+
+    constructor() {
+        marketMakers[msg.sender] = true;
+    }
+
+    function addToken(address _token) external onlyMarketMaker {
+        require(!tokens[_token], "Token already added");
+        tokens[_token] = true;
+        emit TokenAdded(_token);
+    }
+
+    function addMarketMaker(address _marketMaker) external onlyMarketMaker {
+        marketMakers[_marketMaker] = true;
+        emit MarketMakerAdded(_marketMaker);
+    }
+
+    function authorize(address _token, address _account) external onlyMarketMaker {
+        authorized[_token][_account] = true;
+    }
+
+    function deposit(address _token, uint256 _amount) external {
+        require(tokens[_token], "Token not supported");
+        require(_amount > 0, "Amount must be greater than 0");
+        balances[msg.sender][_token] += _amount;
+        emit Deposit(msg.sender, _token, _amount);
+    }
+
+    function withdraw(address _token, uint256 _amount) external {
+        require(tokens[_token], "Token not supported");
+        require(balances[msg.sender][_token] >= _amount, "Insufficient balance");
+        balances[msg.sender][_token] -= _amount;
+        emit Withdrawal(msg.sender, _token, _amount);
+    }
+
+    function trade(address _fromToken, address _toToken, uint256 _amount) external onlyAuthorized(_fromToken) {
+        require(tokens[_fromToken] && tokens[_toToken], "Invalid tokens");
+        require(_amount > 0, "Amount must be greater than 0");
+
+        uint256 amountReceived = _amount; // Simplified for demonstration
+        balances[msg.sender][_fromToken] -= _amount;
+        balances[msg.sender][_toToken] += amountReceived;
+        emit Trade(msg.sender, address(this), _toToken, _amount, amountReceived);
+    }
+}
